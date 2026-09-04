@@ -1,0 +1,73 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: KolayCanliYayin
+
+    env:
+      APP_URL: ${{ vars.APP_URL }}
+      BUILD_NUMBER: ${{ github.run_number }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ZIP dosyasını aç
+        working-directory: .
+        run: |
+          unzip -q PandaTV-GitHub.zip
+          test -f KolayCanliYayin/package.json
+          test -f KolayCanliYayin/settings.gradle.kts
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Testleri çalıştır
+        run: |
+          npm run check
+          npm test
+
+      - name: Java kurulumu
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK kurulumu
+        uses: android-actions/setup-android@v3
+
+      - name: Gradle kurulumu
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: APK derle ve denetle
+        run: gradle --no-daemon :app:assembleDebug :app:lintDebug
+
+      - name: APK dosyasını yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: PandaTV-APK
+          path: KolayCanliYayin/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Denetim raporlarını yükle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-raporlari
+          path: KolayCanliYayin/app/build/reports/
+          if-no-files-found: ignore
